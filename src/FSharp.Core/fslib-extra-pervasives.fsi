@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
 
 /// <summary>Pervasives: Additional bindings available at the top level</summary>
 namespace Microsoft.FSharp.Core
@@ -72,11 +72,9 @@ module ExtraTopLevelOperators =
     [<CompiledName("CreateSet")>]
     val set : elements:seq<'T> -> Set<'T>
 
-#if !NO_ASYNC_BUILDER
     /// <summary>Builds an asynchronous workflow using computation expression syntax.</summary>
     [<CompiledName("DefaultAsyncBuilder")>]
     val async : Microsoft.FSharp.Control.AsyncBuilder  
-#endif
 
     /// <summary>Converts the argument to 32-bit float.</summary>
     /// <remarks>This is a direct conversion for all 
@@ -124,13 +122,14 @@ module ExtraTopLevelOperators =
     [<CompiledName("CreateDictionary")>]
     val dict : keyValuePairs:seq<'Key * 'Value> -> System.Collections.Generic.IDictionary<'Key,'Value> when 'Key : equality
 
+    /// <summary>Builds a read-only lookup table from a sequence of key/value pairs. The key objects are indexed using generic hashing and equality.</summary>
+    [<CompiledName("CreateReadOnlyDictionary")>]
+    val readOnlyDict : keyValuePairs:seq<'Key * 'Value> -> System.Collections.Generic.IReadOnlyDictionary<'Key,'Value> when 'Key : equality
+
     /// <summary>Builds a 2D array from a sequence of sequences of elements.</summary>
     [<CompiledName("CreateArray2D")>]
     val array2D : rows:seq<#seq<'T>> -> 'T[,]
 
-
-    #if FX_MINIMAL_REFLECTION // not on Compact Framework 
-    #else
     /// <summary>Special prefix operator for splicing typed expressions into quotation holes.</summary>
     [<CompiledName("SpliceExpression")>]
     val (~%) : expression:Microsoft.FSharp.Quotations.Expr<'T> -> 'T
@@ -138,7 +137,6 @@ module ExtraTopLevelOperators =
     /// <summary>Special prefix operator for splicing untyped expressions into quotation holes.</summary>
     [<CompiledName("SpliceUntypedExpression")>]
     val (~%%) : expression:Microsoft.FSharp.Quotations.Expr -> 'T
-    #endif
 
     /// <summary>An active pattern to force the execution of values of type <c>Lazy&lt;_&gt;</c>.</summary>
     [<CompiledName("LazyPattern")>]

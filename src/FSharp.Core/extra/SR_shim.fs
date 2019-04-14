@@ -1,12 +1,16 @@
-namespace Microsoft.FSharp.Core
-open System
-open System.Reflection
+// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
 
-//------------------------------------------------------------------------
-// shims for things not yet implemented
-//------------------------------------------------------------------------
+namespace Microsoft.FSharp.Core
 
 module internal SR =
+// #if FX_RESHAPED_REFLECTION
+//     open System.Reflection
+//     type private TypeInThisAssembly (_dummy:obj) = class end
+//     // can't use typeof here.  Because intrinsics are not yet defined.
+//     let private resources = new System.Resources.ResourceManager("FSCore", TypeInThisAssembly(null).GetType().GetTypeInfo().Assembly)
+// #else
+//     let private resources = new System.Resources.ResourceManager("FSCore", System.Reflection.Assembly.GetExecutingAssembly())
+// #endif
 
     let matchCasesIncomplete = "matchCasesIncomplete"
     let resetNotSupported = "resetNotSupported"
@@ -73,7 +77,7 @@ module internal SR =
     let notARecordType = "notARecordType"
     let nullsNotAllowedInArray = "nullsNotAllowedInArray"
     let objIsNotARecord = "objIsNotARecord"
-    let keyNotFoundAlt = "keyNotFoundAltMessage"
+    let keyNotFoundAlt = "keyNotFoundAlt"
     let firstClassUsesOfSplice = "firstClassUsesOfSplice"
     let printfNotAFunType = "printfNotAFunType"
     let printfMissingFormatSpecifier = "printfMissingFormatSpecifier"
@@ -155,14 +159,8 @@ module internal SR =
     let unsupportedQueryCall = "unsupportedQueryCall"
     let unsupportedQueryProperty = "unsupportedQueryProperty"
     
-    let GetString (name: String) =
+    let GetString(name:System.String) : System.String = 
+        // resources.GetString(name, System.Globalization.CultureInfo.CurrentUICulture)
         let ok, value = SR.Resources.resources.TryGetValue(name)
         if ok then value
         else "Missing FSCore string resource for: " + name
-
-    let GetString1(name:String, arg1:String) = 
-        String.Format(GetString(name), arg1)
-    let GetString2(name:String, arg1:String, arg2:String) = 
-        String.Format(GetString(name), arg1, arg2)
-    let GetString3(name:String, arg1:String, arg2:String, arg3:String) = 
-        String.Format(GetString(name), arg1, arg2, arg3)

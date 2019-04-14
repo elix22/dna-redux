@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
 
 namespace Microsoft.FSharp.Core
 
@@ -29,7 +29,7 @@ module ExtraTopLevelOperators =
         | _ -> ()
 
     [<CompiledName("CreateSet")>]
-    let set l = Collections.Set.ofSeq l
+    let set elements = Collections.Set.ofSeq elements
 
     let dummyArray = [||]
     let inline dont_tail_call f = 
@@ -40,59 +40,123 @@ module ExtraTopLevelOperators =
     let inline ICollection_Contains<'collection,'item when 'collection :> ICollection<'item>> (collection:'collection) (item:'item) =
         collection.Contains item
 
-    let inline dictImpl (comparer:IEqualityComparer<'SafeKey>) (makeSafeKey:'Key->'SafeKey) (getKey:'SafeKey->'Key) (l:seq<'Key*'T>) = 
-        let t = Dictionary comparer
-        for (k,v) in l do 
-            t.[makeSafeKey k] <- v
+    [<DebuggerDisplay("Count = {Count}")>]
+    [<DebuggerTypeProxy(typedefof<DictDebugView<_,_,_>>)>]
+    type DictImpl<'SafeKey,'Key,'T>(t : Dictionary<'SafeKey,'T>, makeSafeKey : 'Key->'SafeKey, getKey : 'SafeKey->'Key) =
+#if NETSTANDARD
+        static let emptyEnumerator = (Array.empty<KeyValuePair<'Key, 'T>> :> seq<_>).GetEnumerator()
+#endif
+        member x.Count = t.Count
+
         // Give a read-only view of the dictionary
-        { new IDictionary<'Key, 'T> with 
-                member s.Item 
-                    with get x = dont_tail_call (fun () -> t.[makeSafeKey x])
-                    and  set x v = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)))
-                member s.Keys = 
-                    let keys = t.Keys
-                    { new ICollection<'Key> with 
-                          member s.Add(x) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
-                          member s.Clear() = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
-                          member s.Remove(x) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
-                          member s.Contains(x) = t.ContainsKey (makeSafeKey x)
-                          member s.CopyTo(arr,i) = 
-                              let mutable n = 0 
-                              for k in keys do 
-                                  arr.[i+n] <- getKey k
-                                  n <- n + 1
-                          member s.IsReadOnly = true
-                          member s.Count = keys.Count
-                      interface IEnumerable<'Key> with
-                            member s.GetEnumerator() = (keys |> Seq.map getKey).GetEnumerator()
-                      interface System.Collections.IEnumerable with
-                            member s.GetEnumerator() = ((keys |> Seq.map getKey) :> System.Collections.IEnumerable).GetEnumerator() }
-                    
-                member s.Values = upcast t.Values
-                member s.Add(k,v) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)))
-                member s.ContainsKey(k) = dont_tail_call (fun () -> t.ContainsKey(makeSafeKey k))
-                member s.TryGetValue(k,r) = 
-                    let safeKey = makeSafeKey k
-                    if t.ContainsKey(safeKey) then (r <- t.[safeKey]; true) else false
-                member s.Remove(k : 'Key) = (raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated))) : bool) 
-          interface ICollection<KeyValuePair<'Key, 'T>> with 
-                member s.Add(x) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
-                member s.Clear() = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
-                member s.Remove(x) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
-                member s.Contains(KeyValue(k,v)) = ICollection_Contains t (KeyValuePair<_,_>(makeSafeKey k,v))
-                member s.CopyTo(arr,i) = 
-                    let mutable n = 0 
-                    for (KeyValue(k,v)) in t do 
-                        arr.[i+n] <- KeyValuePair<_,_>(getKey k,v)
-                        n <- n + 1
-                member s.IsReadOnly = true
-                member s.Count = t.Count
-          interface IEnumerable<KeyValuePair<'Key, 'T>> with
-                member s.GetEnumerator() = 
-                    (t |> Seq.map (fun (KeyValue(k,v)) -> KeyValuePair<_,_>(getKey k,v))).GetEnumerator()
-          interface System.Collections.IEnumerable with
-                member s.GetEnumerator() = 
-                    ((t |> Seq.map (fun (KeyValue(k,v)) -> KeyValuePair<_,_>(getKey k,v))) :> System.Collections.IEnumerable).GetEnumerator() }
+        interface IDictionary<'Key, 'T> with
+            member s.Item 
+                with get x = dont_tail_call (fun () -> t.[makeSafeKey x])
+                and  set _ _ = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)))
+            member s.Keys = 
+                let keys = t.Keys
+                { new ICollection<'Key> with 
+                      member s.Add(x) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
+                      member s.Clear() = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
+                      member s.Remove(x) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
+                      member s.Contains(x) = t.ContainsKey (makeSafeKey x)
+                      member s.CopyTo(arr,i) =
+                          let mutable n = 0 
+                          for k in keys do 
+                              arr.[i+n] <- getKey k
+                              n <- n + 1
+                      member s.IsReadOnly = true
+                      member s.Count = keys.Count
+                  interface IEnumerable<'Key> with
+                        member s.GetEnumerator() = (keys |> Seq.map getKey).GetEnumerator()
+                  interface System.Collections.IEnumerable with
+                        member s.GetEnumerator() = ((keys |> Seq.map getKey) :> System.Collections.IEnumerable).GetEnumerator() }
+                
+            member s.Values = upcast t.Values
+            member s.Add(_,_) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)))
+            member s.ContainsKey(k) = dont_tail_call (fun () -> t.ContainsKey(makeSafeKey k))
+            member s.TryGetValue(k,r) = 
+                let safeKey = makeSafeKey k
+                if t.ContainsKey(safeKey) then (r <- t.[safeKey]; true) else false
+            member s.Remove(_ : 'Key) = (raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated))) : bool) 
+
+        interface IReadOnlyDictionary<'Key, 'T> with
+            member __.Item with get key = t.[makeSafeKey key]
+            member __.Keys = t.Keys |> Seq.map getKey
+            member __.TryGetValue(key, r) =
+                match t.TryGetValue (makeSafeKey key) with
+                | false, _ -> false
+                | true, value ->
+                    r <- value
+                    true
+            member __.Values = (t :> IReadOnlyDictionary<_,_>).Values
+            member __.ContainsKey k = t.ContainsKey (makeSafeKey k)
+
+        interface ICollection<KeyValuePair<'Key, 'T>> with 
+            member s.Add(_) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
+            member s.Clear() = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
+            member s.Remove(_) = raise (NotSupportedException(SR.GetString(SR.thisValueCannotBeMutated)));
+            member s.Contains(KeyValue(k,v)) = ICollection_Contains t (KeyValuePair<_,_>(makeSafeKey k,v))
+            member s.CopyTo(arr,i) = 
+                let mutable n = 0 
+                for (KeyValue(k,v)) in t do 
+                    arr.[i+n] <- KeyValuePair<_,_>(getKey k,v)
+                    n <- n + 1
+            member s.IsReadOnly = true
+            member s.Count = t.Count
+
+        interface IReadOnlyCollection<KeyValuePair<'Key, 'T>> with
+            member __.Count = t.Count
+
+        interface IEnumerable<KeyValuePair<'Key, 'T>> with
+            member s.GetEnumerator() =
+                // We use an array comprehension here instead of seq {} as otherwise we get incorrect
+                // IEnumerator.Reset() and IEnumerator.Current semantics. 
+                // Coreclr has a bug with SZGenericEnumerators --- implement a correct enumerator.  On desktop use the desktop implementation because it's ngened.
+#if !NETSTANDARD               
+                let kvps = [| for (KeyValue (k,v)) in t -> KeyValuePair (getKey k, v) |] :> seq<_>
+                kvps.GetEnumerator()
+#else
+                let endIndex = t.Count
+                if endIndex = 0 then emptyEnumerator
+                else
+                    let kvps = [| for (KeyValue (k,v)) in t -> KeyValuePair (getKey k, v) |]
+                    let mutable index = -1
+                    let current () =
+                        if index < 0 then raise <| InvalidOperationException(SR.GetString(SR.enumerationNotStarted)) 
+                        if index >= endIndex then  raise <| InvalidOperationException(SR.GetString(SR.enumerationAlreadyFinished)) 
+                        kvps.[index]
+
+                    {new IEnumerator<_> with
+                        member __.Current = current ()
+                      interface System.Collections.IEnumerator with
+                            member __.Current = box(current())
+                            member __.MoveNext() =
+                                if index < endIndex then
+                                    index <- index + 1
+                                    index < endIndex
+                                else false
+                            member __.Reset() = index <- -1
+                      interface System.IDisposable with 
+                            member self.Dispose() = () }
+#endif
+
+        interface System.Collections.IEnumerable with
+            member s.GetEnumerator() =
+                // We use an array comprehension here instead of seq {} as otherwise we get incorrect
+                // IEnumerator.Reset() and IEnumerator.Current semantics. 
+                let kvps = [| for (KeyValue (k,v)) in t -> KeyValuePair (getKey k, v) |] :> System.Collections.IEnumerable
+                kvps.GetEnumerator()
+
+    and DictDebugView<'SafeKey,'Key,'T>(d:DictImpl<'SafeKey,'Key,'T>) =
+        [<DebuggerBrowsable(DebuggerBrowsableState.RootHidden)>]
+        member x.Items = Array.ofSeq d
+
+    let inline dictImpl (comparer:IEqualityComparer<'SafeKey>) (makeSafeKey : 'Key->'SafeKey) (getKey : 'SafeKey->'Key) (l:seq<'Key*'T>) =
+        let t = Dictionary comparer
+        for (k,v) in l do
+            t.[makeSafeKey k] <- v
+        DictImpl(t, makeSafeKey, getKey)
 
     // We avoid wrapping a StructBox, because under 64 JIT we get some "hard" tailcalls which affect performance
     let dictValueType (l:seq<'Key*'T>) = dictImpl HashIdentity.Structural<'Key> id id l
@@ -101,14 +165,24 @@ module ExtraTopLevelOperators =
     let dictRefType   (l:seq<'Key*'T>) = dictImpl RuntimeHelpers.StructBox<'Key>.Comparer (fun k -> RuntimeHelpers.StructBox k) (fun sb -> sb.Value) l
 
     [<CompiledName("CreateDictionary")>]
-    let dict (l:seq<'Key*'T>) =
+    let dict (keyValuePairs:seq<'Key*'T>) : IDictionary<'Key,'T> =
 #if FX_RESHAPED_REFLECTION
         if (typeof<'Key>).GetTypeInfo().IsValueType
 #else
         if typeof<'Key>.IsValueType
 #endif
-            then dictValueType l
-            else dictRefType   l
+            then dictValueType keyValuePairs :> _
+            else dictRefType   keyValuePairs :> _
+
+    [<CompiledName("CreateReadOnlyDictionary")>]
+    let readOnlyDict (keyValuePairs:seq<'Key*'T>) : IReadOnlyDictionary<'Key,'T> =
+#if FX_RESHAPED_REFLECTION
+        if (typeof<'Key>).GetTypeInfo().IsValueType
+#else
+        if typeof<'Key>.IsValueType
+#endif
+            then dictValueType keyValuePairs :> _
+            else dictRefType   keyValuePairs :> _
 
     let getArray (vals : seq<'T>) = 
         match vals with
@@ -142,68 +216,62 @@ module ExtraTopLevelOperators =
     // -------------------------------------------------------------------- 
 
     [<CompiledName("PrintFormatToString")>]
-    let sprintf     fp = Printf.sprintf     fp
+    let sprintf     format = Printf.sprintf     format
 
     [<CompiledName("PrintFormatToStringThenFail")>]
-    let failwithf   fp = Printf.failwithf   fp
+    let failwithf   format = Printf.failwithf   format
 
     [<CompiledName("PrintFormatToTextWriter")>]
-    let fprintf (os:TextWriter)  fp = Printf.fprintf os  fp 
+    let fprintf (textWriter:TextWriter)  format = Printf.fprintf textWriter  format 
 
     [<CompiledName("PrintFormatLineToTextWriter")>]
-    let fprintfn (os:TextWriter) fp = Printf.fprintfn os fp 
+    let fprintfn (textWriter:TextWriter) format = Printf.fprintfn textWriter format 
     
 #if !FX_NO_SYSTEM_CONSOLE
     [<CompiledName("PrintFormat")>]
-    let printf      fp = Printf.printf      fp 
+    let printf format = Printf.printf      format 
 
     [<CompiledName("PrintFormatToError")>]
-    let eprintf     fp = Printf.eprintf     fp 
+    let eprintf format = Printf.eprintf     format 
 
     [<CompiledName("PrintFormatLine")>]
-    let printfn     fp = Printf.printfn     fp 
+    let printfn format = Printf.printfn     format 
 
     [<CompiledName("PrintFormatLineToError")>]
-    let eprintfn    fp = Printf.eprintfn    fp 
+    let eprintfn format = Printf.eprintfn    format 
 #endif
 
     [<CompiledName("FailWith")>]
     let failwith s = raise (Failure s)
 
-#if !NO_ASYNC_BUILDER
     [<CompiledName("DefaultAsyncBuilder")>]
-    let async = new Microsoft.FSharp.Control.AsyncBuilder()
-#endif
+    let async = AsyncBuilder()
 
     [<CompiledName("ToSingle")>]
-    let inline single x = float32 x
+    let inline single value = float32 value
 
     [<CompiledName("ToDouble")>]
-    let inline double x = float x
+    let inline double value = float value
 
     [<CompiledName("ToByte")>]
-    let inline uint8 x = byte x
+    let inline uint8 value = byte value
 
     [<CompiledName("ToSByte")>]
-    let inline int8 x = sbyte x
+    let inline int8 value = sbyte value
 
     module Checked = 
 
         [<CompiledName("ToByte")>]
-        let inline uint8 x = Checked.byte x
+        let inline uint8 value = Checked.byte value
 
         [<CompiledName("ToSByte")>]
-        let inline int8 x = Checked.sbyte x
+        let inline int8 value = Checked.sbyte value
 
-
-    #if FX_MINIMAL_REFLECTION // not on Compact Framework 
-    #else
     [<CompiledName("SpliceExpression")>]
     let (~%) (_:Microsoft.FSharp.Quotations.Expr<'a>) : 'a = raise <| InvalidOperationException(SR.GetString(SR.firstClassUsesOfSplice)) 
 
     [<CompiledName("SpliceUntypedExpression")>]
     let (~%%) (_: Microsoft.FSharp.Quotations.Expr) : 'a = raise <| InvalidOperationException (SR.GetString(SR.firstClassUsesOfSplice)) 
-    #endif
 
     [<assembly: AutoOpen("Microsoft.FSharp")>]
     [<assembly: AutoOpen("Microsoft.FSharp.Core.LanguagePrimitives.IntrinsicOperators")>]
@@ -217,11 +285,13 @@ module ExtraTopLevelOperators =
     do()
 
     [<CompiledName("LazyPattern")>]
-    let (|Lazy|) (x:Lazy<_>) = x.Force()
+    let (|Lazy|) (input:Lazy<_>) = input.Force()
+
 
 #if !NO_QUERY_BUILDER
     let query = Microsoft.FSharp.Linq.QueryBuilder()
 #endif
+
 
 namespace Microsoft.FSharp.Core.CompilerServices
 

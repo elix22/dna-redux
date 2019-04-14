@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
 
 namespace Microsoft.FSharp.Linq.RuntimeHelpers
 
@@ -54,10 +54,10 @@ module internal Adapters =
             finally
                 System.Threading.Monitor.Exit(d)
 
-#else    
+#else
          let d = new System.Collections.Concurrent.ConcurrentDictionary<Type,'b>(HashIdentity.Structural)        
          fun x -> d.GetOrAdd(x, fun r -> f r)
-#endif               
+#endif
 
     let isPartiallyImmutableRecord : Type -> bool = 
         memoize (fun t -> 
